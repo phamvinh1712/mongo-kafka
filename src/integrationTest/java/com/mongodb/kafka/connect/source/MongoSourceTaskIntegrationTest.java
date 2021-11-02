@@ -383,6 +383,42 @@ public class MongoSourceTaskIntegrationTest extends MongoKafkaTestCase {
   }
 
   @Test
+  @DisplayName("Ensure source can handle invalid resume token when copy mode is when_needed")
+  void testSourceCanHandleInvalidResumeTokenWhenCopyIsEnabled() {
+    assumeTrue(isGreaterThanThreeDotSix());
+
+    try (AutoCloseableSourceTask task = createSourceTask()) {
+      MongoCollection<Document> coll = getAndCreateCollection();
+
+      insertMany(rangeClosed(1, 11), coll);
+
+      HashMap<String, String> cfg =
+          new HashMap<String, String>() {
+            {
+              put(MongoSourceConfig.DATABASE_CONFIG, coll.getNamespace().getDatabaseName());
+              put(MongoSourceConfig.COLLECTION_CONFIG, coll.getNamespace().getCollectionName());
+              put(MongoSourceConfig.COPY_EXISTING_CONFIG, "true");
+              put(
+                  MongoSourceConfig.COPY_EXISTING_MODE_CONFIG,
+                  MongoSourceConfig.CopyMode.WHEN_NEEDED.value());
+              put(MongoSourceConfig.POLL_MAX_BATCH_SIZE_CONFIG, "50");
+              put(MongoSourceConfig.POLL_AWAIT_TIME_MS_CONFIG, "1000");
+            }
+          };
+
+      when(context.offsetStorageReader()).thenReturn(offsetStorageReader);
+      when(offsetStorageReader.offset(any())).thenReturn(INVALID_OFFSET);
+      task.initialize(context);
+      task.start(cfg);
+
+      assertSourceRecordValues(createInserts(1, 11), getNextResults(task), coll);
+      insertMany(rangeClosed(12, 50), coll);
+
+      assertSourceRecordValues(createInserts(12, 50), getNextResults(task), coll);
+    }
+  }
+
+  @Test
   @DisplayName("Ensure source sets the expected topic mapping")
   void testSourceTopicMapping() {
     assumeTrue(isGreaterThanThreeDotSix());
