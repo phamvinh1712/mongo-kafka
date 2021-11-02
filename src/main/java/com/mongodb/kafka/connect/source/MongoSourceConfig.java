@@ -240,6 +240,14 @@ public class MongoSourceConfig extends AbstractConfig {
           + "supported.";
   private static final boolean COPY_EXISTING_DEFAULT = false;
 
+  public static final String COPY_EXISTING_MODE_CONFIG = "copy.existing.mode";
+  private static final String COPY_EXISTING_MODE_DISPLAY = "Copy existing mode";
+  private static final String COPY_EXISTING_MODE_DOC =
+      "On initial mode, copy only happens on the first start, on when_needed copy happens on both initial and whenever "
+          + "previously recorded offset is invalid resume token";
+
+  private static final CopyMode COPY_EXISTING_MODE_DEFAULT = CopyMode.INITIAL;
+
   public static final String COPY_EXISTING_MAX_THREADS_CONFIG = "copy.existing.max.threads";
   private static final String COPY_EXISTING_MAX_THREADS_DISPLAY =
       "Copy existing max number of threads";
@@ -349,6 +357,15 @@ public class MongoSourceConfig extends AbstractConfig {
     SCHEMA
   }
 
+  public enum CopyMode {
+    INITIAL,
+    WHEN_NEEDED;
+
+    public String value() {
+      return name().toLowerCase(Locale.ROOT);
+    }
+  }
+
   public enum ErrorTolerance {
 
     /** Tolerate no errors. */
@@ -380,6 +397,10 @@ public class MongoSourceConfig extends AbstractConfig {
 
   public ConnectionString getConnectionString() {
     return connectionString;
+  }
+
+  public CopyMode getCopyMode() {
+    return CopyMode.valueOf(getString(COPY_EXISTING_MODE_CONFIG).toUpperCase());
   }
 
   public OutputFormat getKeyOutputFormat() {
@@ -768,6 +789,18 @@ public class MongoSourceConfig extends AbstractConfig {
         ++orderInGroup,
         Width.MEDIUM,
         COPY_EXISTING_DISPLAY);
+
+    configDef.define(
+        COPY_EXISTING_MODE_CONFIG,
+        Type.STRING,
+        COPY_EXISTING_MODE_DEFAULT.value(),
+        Validators.EnumValidatorAndRecommender.in(CopyMode.values()),
+        Importance.MEDIUM,
+        COPY_EXISTING_MODE_DOC,
+        group,
+        ++orderInGroup,
+        Width.MEDIUM,
+        COPY_EXISTING_MODE_DISPLAY);
 
     configDef.define(
         COPY_EXISTING_MAX_THREADS_CONFIG,

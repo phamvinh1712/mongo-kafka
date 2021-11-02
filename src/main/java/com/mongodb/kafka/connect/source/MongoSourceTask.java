@@ -193,9 +193,7 @@ public final class MongoSourceTask extends SourceTask {
             getMongoDriverInformation(CONNECTOR_TYPE, sourceConfig.getString(PROVIDER_CONFIG)));
 
     if (shouldCopyData()) {
-      setCachedResultAndResumeToken();
-      copyDataManager = new MongoCopyDataManager(sourceConfig, mongoClient);
-      isCopying.set(true);
+      copy(sourceConfig, mongoClient);
     } else {
       initializeCursorAndHeartbeatManager(time, sourceConfig, mongoClient);
     }
@@ -426,7 +424,11 @@ public final class MongoSourceTask extends SourceTask {
           changeStreamIterable.withDocumentClass(RawBsonDocument.class).cursor();
     } catch (MongoCommandException e) {
       if (resumeToken != null) {
-        if (invalidatedResumeToken(e)) {
+        if (isCopyWhenNeeded() && (invalidatedResumeToken(e) || changeStreamNotValid(e))) {
+          copy(sourceConfig, mongoClient);
+          invalidatedCursor = true;
+          return tryCreateCursor(sourceConfig, mongoClient, null);
+        } else if (invalidatedResumeToken(e)) {
           invalidatedCursor = true;
           return tryCreateCursor(sourceConfig, mongoClient, null);
         } else if (doesNotSupportsStartAfter(e)) {
@@ -474,6 +476,17 @@ public final class MongoSourceTask extends SourceTask {
       }
       return null;
     }
+  }
+
+  private void copy(final MongoSourceConfig sourceConfig, final MongoClient mongoClient) {
+    setCachedResultAndResumeToken();
+    copyDataManager = new MongoCopyDataManager(sourceConfig, mongoClient);
+    isCopying.set(true);
+  }
+
+  private boolean isCopyWhenNeeded() {
+    return sourceConfig.getCopyMode() == MongoSourceConfig.CopyMode.WHEN_NEEDED
+        && sourceConfig.getBoolean(COPY_EXISTING_CONFIG);
   }
 
   private boolean doesNotSupportsStartAfter(final MongoCommandException e) {
