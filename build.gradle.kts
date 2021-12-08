@@ -279,6 +279,51 @@ tasks.register<Jar>("javadocJar") {
     archiveClassifier.set("javadoc")
 }
 
+// Confluent Archive
+val releaseDate by extra(DateTimeFormatter.ISO_LOCAL_DATE.format(LocalDateTime.now()))
+val archiveFilename = "mongodb-kafka-connect-mongodb"
+tasks.register<Copy>("prepareConfluentArchive") {
+    group = "Confluent"
+    description = "Prepares the Confluent Archive ready for the hub"
+    dependsOn("confluentJar")
+
+    val baseDir = "$archiveFilename-${project.version}"
+    from("config/archive/manifest.json") {
+        expand(project.properties)
+        destinationDir = file("$buildDir/confluentArchive/$baseDir")
+    }
+
+    from("config/archive/assets") {
+        into("assets")
+    }
+
+    from("config") {
+        include(listOf("MongoSinkConnector.properties", "MongoSourceConnector.properties"))
+        into("etc")
+    }
+
+    from("$buildDir/libs") {
+        include(listOf("${project.name}-connect-${project.version}-confluent.jar"))
+        into("lib")
+    }
+
+    from(".") {
+        include(listOf("README.md", "LICENSE.txt"))
+        into("doc")
+    }
+}
+
+tasks.register<Zip>("createConfluentArchive") {
+    group = "Confluent"
+    description = "Creates the Confluent Archive zipfile to be uploaded to the Confluent Hub"
+    dependsOn("prepareConfluentArchive")
+    from(files("$buildDir/confluentArchive"))
+    archiveBaseName.set("")
+    archiveAppendix.set(archiveFilename)
+    archiveVersion.set(project.version.toString())
+    destinationDirectory.set(file("$buildDir/confluent"))
+}
+
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {
@@ -288,6 +333,7 @@ publishing {
             artifact(tasks["javadocJar"])
             artifact(tasks["confluentJar"])
             artifact(tasks["allJar"])
+            artifact(tasks["createConfluentArchive"])
 
             pom {
                 name.set(project.name)
@@ -319,8 +365,8 @@ publishing {
 
     repositories {
         maven {
-            val snapshotsRepoUrl = URI("https://oss.sonatype.org/content/repositories/snapshots/")
-            val releasesRepoUrl = URI("https://oss.sonatype.org/service/local/staging/deploy/maven2/")
+            val snapshotsRepoUrl = URI("https://nexus.shopback-data.com/repository/maven-internal-snapshots/")
+            val releasesRepoUrl = URI("https://nexus.shopback-data.com/repository/maven-internal-releases/")
             url = if (version.toString().endsWith("SNAPSHOT")) snapshotsRepoUrl else releasesRepoUrl
             credentials {
                 val nexusUsername: String? by project
@@ -332,9 +378,9 @@ publishing {
     }
 }
 
-signing {
-    sign(publishing.publications["mavenJava"])
-}
+// signing {
+//    sign(publishing.publications["mavenJava"])
+// }
 
 tasks.javadoc {
     if (JavaVersion.current().isJava9Compatible) {
@@ -393,49 +439,4 @@ gradle.taskGraph.whenReady {
             signing_password?.let { extra["signing.password"] = it }
         }
     }
-}
-
-// Confluent Archive
-val releaseDate by extra(DateTimeFormatter.ISO_LOCAL_DATE.format(LocalDateTime.now()))
-val archiveFilename = "mongodb-kafka-connect-mongodb"
-tasks.register<Copy>("prepareConfluentArchive") {
-    group = "Confluent"
-    description = "Prepares the Confluent Archive ready for the hub"
-    dependsOn("confluentJar")
-
-    val baseDir = "$archiveFilename-${project.version}"
-    from("config/archive/manifest.json") {
-        expand(project.properties)
-        destinationDir = file("$buildDir/confluentArchive/$baseDir")
-    }
-
-    from("config/archive/assets") {
-        into("assets")
-    }
-
-    from("config") {
-        include(listOf("MongoSinkConnector.properties", "MongoSourceConnector.properties"))
-        into("etc")
-    }
-
-    from("$buildDir/libs") {
-        include(listOf("${project.name}-connect-${project.version}-confluent.jar"))
-        into("lib")
-    }
-
-    from(".") {
-        include(listOf("README.md", "LICENSE.txt"))
-        into("doc")
-    }
-}
-
-tasks.register<Zip>("createConfluentArchive") {
-    group = "Confluent"
-    description = "Creates the Confluent Archive zipfile to be uploaded to the Confluent Hub"
-    dependsOn("prepareConfluentArchive")
-    from(files("$buildDir/confluentArchive"))
-    archiveBaseName.set("")
-    archiveAppendix.set(archiveFilename)
-    archiveVersion.set(project.version.toString())
-    destinationDirectory.set(file("$buildDir/confluent"))
 }
