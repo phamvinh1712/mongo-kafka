@@ -32,6 +32,7 @@ android/
 
 # local settings
 local.properties
+gradle.properties
 
 # jenv
 .java-version
