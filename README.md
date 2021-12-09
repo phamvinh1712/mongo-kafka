@@ -31,7 +31,7 @@ nexusPassword=
 ```
 
 Then execute this command to publish to our Nexus
-- `./gradlew publishSnapshots` - publishes to Maven
+- `./gradlew publishSnapshots`
 
 ## IntelliJ IDEA
 
